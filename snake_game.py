@@ -1,3 +1,15 @@
+"""
+snake_game.py
+
+Игровая логика "Змейки" (без UI экранов):
+- Модель змейки (координаты в клетках, движение, рост, спрайты)
+- Модель фруктов (несколько яблок одновременно)
+- Проверка столкновений (стены / сам в себя)
+- Подсчёт очков и флаг game_over
+
+"""
+
+
 import random
 import pygame
 from pygame.math import Vector2
@@ -5,7 +17,11 @@ from typing import Set, Tuple
 
 
 class Snake:
+    """Модель змейки: тело, направление, рост и отрисовка спрайтов."""
+
     def __init__(self):
+        """Инициализирует змейку, загружает спрайты и звук."""
+
         self.body = [Vector2(5, 10), Vector2(4, 10), Vector2(3, 10)]
         self.direction = Vector2(0, 0)
         self.new_block = False
@@ -37,17 +53,32 @@ class Snake:
         self.tail = self.tail_left
 
     def reset(self):
+        """Сбрасывает змейку в стартовое состояние (позиция/направление/рост)."""
+
         self.body = [Vector2(5, 10), Vector2(4, 10), Vector2(3, 10)]
         self.direction = Vector2(0, 0)
         self.new_block = False
 
     def play_crunch_sound(self):
+        """Проигрывает звук поедания."""
+
         self.crunch_sound.play()
 
     def add_block(self):
+        """Помечает, что на следующем шаге змейка должна вырасти на 1 сегмент."""
+
         self.new_block = True
 
     def move(self):
+        """
+            Делает один шаг змейки по сетке.
+
+            Механика:
+            - Создаётся новая голова: old_head + direction
+            - Вставляется в начало списка body
+            - Если не растём — удаляется хвост
+            - Если direction=(0,0) — змейка стоит (до первого нажатия)
+        """
         # Important: do not move until player chooses direction
         if self.direction == Vector2(0, 0):
             return
@@ -63,6 +94,10 @@ class Snake:
             self.body = body_copy
 
     def draw(self, screen, cell_size):
+        """
+            Рисует змейку на экране по текущим координатам.
+        """
+
         self._update_head_graphics()
         self._update_tail_graphics()
 
@@ -93,6 +128,8 @@ class Snake:
                         screen.blit(self.body_br, block_rect)
 
     def _update_head_graphics(self):
+        """Выбирает правильный спрайт головы по направлению движения."""
+
         head_relation = self.body[1] - self.body[0]
         if head_relation == Vector2(1, 0):
             self.head = self.head_left
@@ -104,6 +141,8 @@ class Snake:
             self.head = self.head_down
 
     def _update_tail_graphics(self):
+        """Выбирает правильный спрайт хвоста по направлению последнего сегмента."""
+
         tail_relation = self.body[-2] - self.body[-1]
         if tail_relation == Vector2(1, 0):
             self.tail = self.tail_left
@@ -116,11 +155,16 @@ class Snake:
 
 
 class Fruit:
+    """Один фрукт (яблоко) с позицией в координатах клеток."""
+
     def __init__(self, cell_number: int):
         self.cell_number = cell_number
         self.pos = Vector2(0, 0)
 
     def spawn(self, occupied: Set[Tuple[int, int]]):
+        """
+            Ставит фрукт в случайную свободную клетку.
+        """
         max_attempts = self.cell_number * self.cell_number + 200
         for _ in range(max_attempts):
             x = random.randint(0, self.cell_number - 1)
@@ -130,15 +174,16 @@ class Fruit:
                 return
 
     def draw(self, screen, cell_size, apple_surface):
+        """
+            Рисует фрукт.
+        """
         rect = pygame.Rect(int(self.pos.x * cell_size), int(self.pos.y * cell_size), cell_size, cell_size)
         screen.blit(apple_surface, rect)
 
 
 class SnakeGame:
     """
-    - Multiple fruits on field
-    - After eating: fruit disappears immediately, replacement spawns on next update
-    - Game over sets flag (no auto reset)
+    Основной класс игровой логики.
     """
     def __init__(self, cell_number: int, fruits_count: int = 5):
         self.cell_number = cell_number
@@ -152,6 +197,8 @@ class SnakeGame:
         self._spawn_initial_fruits()
 
     def reset(self):
+        """Полный сброс игрового состояния (змейка/фрукты/очки/game_over)."""
+
         self.snake.reset()
         self.fruits.clear()
         self.pending_spawns = 0
@@ -159,12 +206,24 @@ class SnakeGame:
         self._spawn_initial_fruits()
 
     def is_game_over(self) -> bool:
+        """Возвращает True, если игра завершена (столкновение)."""
+
         return self.game_over
 
     def get_score(self) -> int:
+        """Возвращает текущий счёт: длина змейки минус стартовая длина (3)."""
+
         return max(0, len(self.snake.body) - 3)
 
     def update(self):
+        """
+            Один тик игры (вызывается таймером в main.py).
+            Порядок:
+            - движение
+            - поедание
+            - проверка проигрыша
+            - дозаспавн фруктов (не более 1 за тик)
+        """
         if self.game_over:
             return
 
@@ -174,6 +233,10 @@ class SnakeGame:
         self._process_pending_spawns(max_per_update=1)
 
     def handle_key(self, key):
+        """
+            Обрабатывает направление движения по нажатой клавише.
+
+        """
         if self.game_over:
             return
 
@@ -198,6 +261,8 @@ class SnakeGame:
     # ---- fruits ----
 
     def _occupied_cells(self) -> Set[Tuple[int, int]]:
+        """Возвращает множество занятых клеток (змейка + фрукты)."""
+
         occupied: Set[Tuple[int, int]] = set()
         for block in self.snake.body:
             occupied.add((int(block.x), int(block.y)))
@@ -206,15 +271,23 @@ class SnakeGame:
         return occupied
 
     def _spawn_initial_fruits(self):
+        """Спавнит стартовое количество фруктов (fruits_count)."""
+
         for _ in range(self.fruits_count):
             self._spawn_one_fruit()
 
     def _spawn_one_fruit(self):
+        """Создаёт 1 фрукт и ставит его в свободную клетку."""
+
         fruit = Fruit(self.cell_number)
         fruit.spawn(self._occupied_cells())
         self.fruits.append(fruit)
 
     def _check_eat(self):
+        """
+                Проверяет поедание фруктов:
+                - если голова на фрукте: удалить фрукт, вырастить змейку, запланировать новый фрукт.
+        """
         head = self.snake.body[0]
 
         eaten_index = None
